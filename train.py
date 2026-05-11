@@ -1,83 +1,45 @@
+# ==========================================
+# PHISHING WEBSITE DETECTION - TRAINING FILE
+# ==========================================
+
+# STEP 1 — IMPORT LIBRARIES
+
 import pandas as pd
 import pickle
 
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score
-
-
-# LOAD DATASET
-df = pd.read_csv("phishing.csv")
+from sklearn.metrics import accuracy_score, confusion_matrix
 
 
 # ==========================================
-# CREATE CUSTOM FEATURES
+# STEP 2 — LOAD DATASET
 # ==========================================
 
-# URL Length
-df['URL_Length'] = df['url'].apply(len)
-
-# Number of dots
-df['Num_Dots'] = df['url'].apply(lambda x: x.count('.'))
-
-# HTTPS presence
-df['HTTPS'] = df['url'].apply(
-    lambda x: 1 if "https" in x else 0
-)
-
-# Number of hyphens
-df['Num_Hyphens'] = df['url'].apply(
-    lambda x: x.count('-')
-)
-
-# Contains @
-df['Contains_At'] = df['url'].apply(
-    lambda x: 1 if '@' in x else 0
-)
-
-# Number of slashes
-df['Num_Slashes'] = df['url'].apply(
-    lambda x: x.count('/')
-)
-
-# Suspicious words
-suspicious_words = [
-    "login",
-    "verify",
-    "secure",
-    "account",
-    "update",
-    "bank",
-    "free",
-    "bonus"
-]
-
-df['Suspicious_Words'] = df['url'].apply(
-    lambda x: sum(word in x.lower() for word in suspicious_words)
-)
+df = pd.read_csv("phishing_urls.csv")
 
 
 # ==========================================
-# FEATURES + TARGET
+# STEP 3 — DATA CLEANING
 # ==========================================
 
-X = df[
-    [
-        'URL_Length',
-        'Num_Dots',
-        'HTTPS',
-        'Num_Hyphens',
-        'Contains_At',
-        'Num_Slashes',
-        'Suspicious_Words'
-    ]
-]
-
-y = df['Result']
+# Remove rows where tld is missing
+df = df.dropna()
 
 
 # ==========================================
-# TRAIN TEST SPLIT
+# STEP 4 — DEFINE FEATURES AND TARGET
+# ==========================================
+
+# Remove non-numerical columns
+X = df.drop(["url", "tld", "label"], axis=1)
+
+# Target column
+y = df["label"]
+
+
+# ==========================================
+# STEP 5 — TRAIN TEST SPLIT
 # ==========================================
 
 X_train, X_test, y_train, y_test = train_test_split(
@@ -89,30 +51,45 @@ X_train, X_test, y_train, y_test = train_test_split(
 
 
 # ==========================================
-# TRAIN MODEL
+# STEP 6 — CREATE MODEL
 # ==========================================
 
-model = LogisticRegression(max_iter=1000)
+model = LogisticRegression(max_iter=2000)
+
+
+# ==========================================
+# STEP 7 — TRAIN MODEL
+# ==========================================
 
 model.fit(X_train, y_train)
 
 
 # ==========================================
-# EVALUATION
+# STEP 8 — MAKE PREDICTIONS
 # ==========================================
 
 y_pred = model.predict(X_test)
 
+
+# ==========================================
+# STEP 9 — EVALUATE MODEL
+# ==========================================
+
 accuracy = accuracy_score(y_test, y_pred)
 
-print("Accuracy:", accuracy)
+print("\nModel Accuracy:", accuracy)
+
+print("\nConfusion Matrix:\n")
+
+print(confusion_matrix(y_test, y_pred))
 
 
 # ==========================================
-# SAVE MODEL
+# STEP 10 — SAVE MODEL
 # ==========================================
 
 with open("model.pkl", "wb") as file:
+
     pickle.dump(model, file)
 
-print("Model saved successfully!")
+print("\nModel Saved Successfully!")
