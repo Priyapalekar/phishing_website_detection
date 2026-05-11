@@ -7,10 +7,14 @@
 import streamlit as st
 import pandas as pd
 import pickle
+import re
+import math
+from collections import Counter
+from urllib.parse import urlparse
 
 
 # ==========================================
-# STEP 2 — LOAD TRAINED MODEL
+# STEP 2 — LOAD MODEL
 # ==========================================
 
 with open("model.pkl", "rb") as file:
@@ -18,18 +22,18 @@ with open("model.pkl", "rb") as file:
 
 
 # ==========================================
-# STEP 3 — PAGE CONFIGURATION
+# STEP 3 — PAGE CONFIG
 # ==========================================
 
 st.set_page_config(
-    page_title="Phishing Website Detector",
+    page_title="AI Phishing Detector",
     page_icon="🔒",
     layout="centered"
 )
 
 
 # ==========================================
-# STEP 4 — CUSTOM CYBERSECURITY UI
+# STEP 4 — CUSTOM UI
 # ==========================================
 
 st.markdown("""
@@ -108,33 +112,35 @@ st.divider()
 
 
 # ==========================================
-# STEP 6 — FEATURE EXTRACTION FUNCTION
+# STEP 6 — ENTROPY FUNCTION
+# ==========================================
+
+def calculate_entropy(text):
+
+    counter = Counter(text)
+
+    length = len(text)
+
+    entropy = 0
+
+    for count in counter.values():
+
+        probability = count / length
+
+        entropy -= probability * math.log2(probability)
+
+    return entropy
+
+
+# ==========================================
+# STEP 7 — FEATURE EXTRACTION
 # ==========================================
 
 def extract_features(url):
 
-    features = {}
+    parsed_url = urlparse(url)
 
-    # URL Length
-    features['URL_Length'] = len(url)
-
-    # Number of dots
-    features['Num_Dots'] = url.count('.')
-
-    # HTTPS presence
-    features['HTTPS'] = 1 if "https" in url else 0
-
-    # Number of hyphens
-    features['Num_Hyphens'] = url.count('-')
-
-    # Contains @ symbol
-    features['Contains_At'] = 1 if '@' in url else 0
-
-    # Number of slashes
-    features['Num_Slashes'] = url.count('/')
-
-    # Contains suspicious words
-    suspicious_words = [
+    suspicious_keywords = [
         "login",
         "verify",
         "secure",
@@ -142,18 +148,54 @@ def extract_features(url):
         "update",
         "bank",
         "free",
-        "bonus"
+        "bonus",
+        "signin",
+        "password"
     ]
 
-    features['Suspicious_Words'] = sum(
-        word in url.lower() for word in suspicious_words
-    )
+    features = {
+
+        # URL Length
+        "url_length": len(url),
+
+        # Number of dots
+        "num_dots": url.count("."),
+
+        # HTTPS presence
+        "has_https": 1 if "https" in url else 0,
+
+        # IP Address detection
+        "has_ip": 1 if re.search(r"\d+\.\d+\.\d+\.\d+", url) else 0,
+
+        # Number of subdirectories
+        "num_subdirs": url.count("/"),
+
+        # Number of parameters
+        "num_params": url.count("?"),
+
+        # Suspicious keyword count
+        "suspicious_words": sum(
+            word in url.lower()
+            for word in suspicious_keywords
+        ),
+
+        # Special character count
+        "special_char_count": len(
+            re.findall(r"[^a-zA-Z0-9]", url)
+        ),
+
+        # Digit count
+        "digits_count": sum(c.isdigit() for c in url),
+
+        # Entropy
+        "entropy": calculate_entropy(url)
+    }
 
     return features
 
 
 # ==========================================
-# STEP 7 — USER INPUT
+# STEP 8 — USER INPUT
 # ==========================================
 
 url = st.text_input(
@@ -163,7 +205,7 @@ url = st.text_input(
 
 
 # ==========================================
-# STEP 8 — SCAN BUTTON
+# STEP 9 — SCAN BUTTON
 # ==========================================
 
 if st.button("🚨 Scan URL"):
@@ -174,7 +216,7 @@ if st.button("🚨 Scan URL"):
 
     else:
 
-        # Extract Features
+        # Extract features
         features = extract_features(url)
 
         # Convert into DataFrame
@@ -212,7 +254,7 @@ if st.button("🚨 Scan URL"):
             )
 
         # ==========================================
-        # THREAT ANALYSIS PANEL
+        # THREAT ANALYSIS
         # ==========================================
 
         st.markdown("## 🔍 Threat Analysis")
@@ -221,19 +263,25 @@ if st.button("🚨 Scan URL"):
             f"""
             <div class="feature-box">
 
-            <b>URL Length:</b> {features['URL_Length']} <br><br>
+            <b>URL Length:</b> {features['url_length']} <br><br>
 
-            <b>Number of Dots:</b> {features['Num_Dots']} <br><br>
+            <b>Number of Dots:</b> {features['num_dots']} <br><br>
 
-            <b>HTTPS Enabled:</b> {features['HTTPS']} <br><br>
+            <b>HTTPS Enabled:</b> {features['has_https']} <br><br>
 
-            <b>Hyphen Count:</b> {features['Num_Hyphens']} <br><br>
+            <b>IP Address Detected:</b> {features['has_ip']} <br><br>
 
-            <b>Contains @ Symbol:</b> {features['Contains_At']} <br><br>
+            <b>Subdirectories:</b> {features['num_subdirs']} <br><br>
 
-            <b>Slash Count:</b> {features['Num_Slashes']} <br><br>
+            <b>Parameters:</b> {features['num_params']} <br><br>
 
-            <b>Suspicious Keywords:</b> {features['Suspicious_Words']}
+            <b>Suspicious Keywords:</b> {features['suspicious_words']} <br><br>
+
+            <b>Special Characters:</b> {features['special_char_count']} <br><br>
+
+            <b>Digits Count:</b> {features['digits_count']} <br><br>
+
+            <b>Entropy:</b> {features['entropy']:.2f}
 
             </div>
             """,
@@ -241,14 +289,14 @@ if st.button("🚨 Scan URL"):
         )
 
         # ==========================================
-        # THREAT LEVEL METER
+        # THREAT LEVEL
         # ==========================================
 
         risk_score = (
-            features['Num_Hyphens']
-            + features['Contains_At']
-            + features['Suspicious_Words']
-            + features['Num_Dots']
+            features['num_dots']
+            + features['has_ip']
+            + features['suspicious_words']
+            + features['special_char_count'] / 10
         )
 
         st.markdown("## 📊 Threat Level")
@@ -256,10 +304,13 @@ if st.button("🚨 Scan URL"):
         st.progress(min(risk_score / 10, 1.0))
 
         if risk_score <= 2:
+
             st.success("Low Risk")
 
         elif risk_score <= 5:
+
             st.warning("Medium Risk")
 
         else:
+
             st.error("High Risk")
